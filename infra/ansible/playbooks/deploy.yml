@@ -1,0 +1,43 @@
+- hosts: todo_vm
+  become: true
+  vars:
+    app_dir: /opt/multicontainer_todo
+    todo_api_image: "{{ lookup('ansible.builtin.env', 'TODO_API_IMAGE') | default('amarillarodrigo/multicontainer_todo:latest', true) }}"
+  tasks:
+    - name: Crear directorio de despliegue
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copiar compose de produccion
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../../docker-compose.prod.yml"
+        dest: "{{ app_dir }}/docker-compose.prod.yml"
+        mode: "0644"
+
+    - name: Crear directorio de configuracion de Nginx
+      ansible.builtin.file:
+        path: "{{ app_dir }}/infra/nginx"
+        state: directory
+        mode: "0755"
+
+    - name: Copiar configuracion de Nginx
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../../infra/nginx/default.conf"
+        dest: "{{ app_dir }}/infra/nginx/default.conf"
+        mode: "0644"
+
+    - name: Actualizar imagenes del stack
+      ansible.builtin.command: docker compose -f docker-compose.prod.yml pull
+      args:
+        chdir: "{{ app_dir }}"
+      environment:
+        TODO_API_IMAGE: "{{ todo_api_image }}"
+
+    - name: Levantar stack de aplicacion
+      ansible.builtin.command: docker compose -f docker-compose.prod.yml up -d
+      args:
+        chdir: "{{ app_dir }}"
+      environment:
+        TODO_API_IMAGE: "{{ todo_api_image }}"

@@ -1,0 +1,12 @@
+- hosts: todo_vm
+  become: true
+  tasks:
+    - name: Instalar Docker
+      ansible.builtin.package:
+        name: docker.io
+        state: present
+
+    - name: Instalar plugin Docker Compose
+      ansible.builtin.package:
+        name: docker-compose-plugin
+        state: present

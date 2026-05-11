@@ -1,0 +1,53 @@
+name: CI-CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: amarillarodrigo/multicontainer_todo
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Definir tag de imagen
+        id: meta
+        run: echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Login Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build y push de imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    runs-on: self-hosted
+    needs: build_and_push
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ejecutar despliegue con Ansible
+        run: |
+          ansible-playbook playbooks/bootstrap.yml
+          ansible-playbook playbooks/deploy.yml
+        working-directory: infra/ansible
+        env:
+          TODO_API_IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.build_and_push.outputs.image_tag }}
